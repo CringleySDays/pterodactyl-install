@@ -2,7 +2,7 @@
 
 emailAddress=""
 mySQLPassword=""
-panelUserName=""
+panelUsername=""
 panelPassword=""
 panelFirstName=""
 panelLastName=""
@@ -104,7 +104,7 @@ sudo php artisan migrate --seed --force
 {
     echo "yes"
     echo "${emailAddress}"
-    echo "${panelUserName}"
+    echo "${panelUsername}"
     echo "${panelFirstName}"
     echo "${panelLastName}"
     echo "${panelPassword}" # Panel Password
