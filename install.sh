@@ -5,9 +5,15 @@ websiteDomain=""
 cd /var/www/pterodactyl
 
 {
-    echo "127.0.0.1", # Redis Host
-    echo "3306",
-    echo "panel",
-    echo "pterodactyl",
+    echo "${emailAddress}"
+    echo "${websiteDomain}"
+    echo "Europe/London"
+    echo "redis"
+    echo "redis"
+    echo "redis"
+    echo "yes"
+    echo "no"
+    echo "127.0.0.1" # Redis Host
     echo "${mySQLPassword}" # Redis Password
-} | sudo php artisan p:environment:database
+    echo "6379"
+} | sudo php artisan p:environment:setup
