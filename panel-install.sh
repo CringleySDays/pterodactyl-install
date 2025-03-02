@@ -1,3 +1,4 @@
+#!/bin/bash
 # --------------------------------------------
 
 emailAddress=""
@@ -24,9 +25,9 @@ echo "Please enter the following for which execution to follow:
 [5] Start the wings service (After you finish setting up the wings config file).
 
 "
-read execution
+read -r execution
 
-if [ $execution = "1" ]; then 
+if [ "$execution" = "1" ]; then 
     (sudo grep -v -F "${websiteIP} ${websiteDomain}" /etc/hosts; echo "${websiteIP} ${websiteDomain}") | sudo tee /etc/hosts
 
     sudo apt -y install software-properties-common curl apt-transport-https ca-certificates gnupg
@@ -46,7 +47,7 @@ if [ $execution = "1" ]; then
     # --------------------------------------------
 
     sudo mkdir -p /var/www/pterodactyl
-    cd /var/www/pterodactyl
+    cd /var/www/pterodactyl || { echo "Failed to change directory to /var/www/pterodactyl"; exit 1; }
 
     sudo curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
     sudo tar -xzvf panel.tar.gz
@@ -60,7 +61,14 @@ if [ $execution = "1" ]; then
 
     # --------------------------------------------
 
-    echo "" | sudo mariadb -u root -p <<EOF USE mysql; CREATE USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${mySQLPassword}'; CREATE DATABASE panel; GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' WITH GRANT OPTION; EXIT; EOF
+    echo "" | sudo mariadb -u root -p <<EOF
+USE mysql; 
+CREATE USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${mySQLPassword}'; 
+CREATE DATABASE panel; 
+GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' WITH GRANT OPTION; 
+EXIT; 
+EOF
+
 
     # --------------------------------------------
     echo "
@@ -78,9 +86,12 @@ if [ $execution = "1" ]; then
     "
     exit 0
 
-elif [ $execution = "2" ]; then
+elif [ "$execution" = "2" ]; then
 
-    redis-cli <<EOF CONFIG SET requirepass ${mySQLPassword} AUTH ${mySQLPassword} exit EOF
+        redis-cli <<EOF
+CONFIG SET requirepass ${mySQLPassword}
+EOF
+
 
     # --------------------------------------------
 
@@ -143,30 +154,28 @@ elif [ $execution = "2" ]; then
 
     exit 0
 
-elif [ execution === "3"]; then
+elif [ "$execution" = "3" ]; then
 
     tee /etc/systemd/system/pteroq.service <<EOF
-    # Pterodactyl Queue Worker File
-    # ----------------------------------
+# Pterodactyl Queue Worker File
+# ----------------------------------
 
-    [Unit]
-    Description=Pterodactyl Queue Worker
-    After=redis-server.service
+[Unit]
+Description=Pterodactyl Queue Worker
+After=redis-server.service
 
-    [Service]
-    # On some systems the user and group might be different.
-    # Some systems use `apache` or `nginx` as the user and group.
-    User=www-data
-    Group=www-data
-    Restart=always
-    ExecStart=/usr/bin/php /var/www/pterodactyl/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
-    StartLimitInterval=180
-    StartLimitBurst=30
-    RestartSec=5s
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+ExecStart=/usr/bin/php /var/www/pterodactyl/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
+StartLimitInterval=180
+StartLimitBurst=30
+RestartSec=5s
 
-    [Install]
-    WantedBy=multi-user.target
-    EOF
+[Install]
+WantedBy=multi-user.target
+EOF
 
     sudo systemctl enable --now redis-server
     sudo systemctl enable --now pteroq.service
@@ -175,52 +184,52 @@ elif [ execution === "3"]; then
 
     sudo rm /etc/nginx/sites-enabled/default
     tee /etc/nginx/sites-available/pterodactyl.conf <<EOF
-    server {
-        # Replace the example <domain> with your domain name or IP address
-        listen 80;
-        server_name ${websiteDomain};
+server {
+# Replace the example <domain> with your domain name or IP address
+listen 80;
+server_name ${websiteDomain};
 
-        root /var/www/pterodactyl/public;
-        index index.html index.htm index.php;
-        charset utf-8;
+root /var/www/pterodactyl/public;
+index index.html index.htm index.php;
+charset utf-8;
 
-        location / {
-            try_files $uri $uri/ /index.php?$query_string;
-        }
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
 
-        location = /favicon.ico { access_log off; log_not_found off; }
-        location = /robots.txt  { access_log off; log_not_found off; }
+location = /favicon.ico { access_log off; log_not_found off; }
+location = /robots.txt  { access_log off; log_not_found off; }
 
-        access_log off;
-        error_log  /var/log/nginx/pterodactyl.app-error.log error;
+access_log off;
+error_log  /var/log/nginx/pterodactyl.app-error.log error;
 
-        # allow larger file uploads and longer script runtimes
-        client_max_body_size 100m;
-        client_body_timeout 120s;
+# allow larger file uploads and longer script runtimes
+client_max_body_size 100m;
+client_body_timeout 120s;
 
-        sendfile off;
+sendfile off;
 
-        location ~ \.php$ {
-            fastcgi_split_path_info ^(.+\.php)(/.+)$;
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-            fastcgi_index index.php;
-            include fastcgi_params;
-            fastcgi_param PHP_VALUE "upload_max_filesize = 100M \n post_max_size=100M";
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-            fastcgi_param HTTP_PROXY "";
-            fastcgi_intercept_errors off;
-            fastcgi_buffer_size 16k;
-            fastcgi_buffers 4 16k;
-            fastcgi_connect_timeout 300;
-            fastcgi_send_timeout 300;
-            fastcgi_read_timeout 300;
-        }
+location ~ \.php$ {
+    fastcgi_split_path_info ^(.+\.php)(/.+)$;
+    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    fastcgi_index index.php;
+    include fastcgi_params;
+    fastcgi_param PHP_VALUE "upload_max_filesize = 100M \n post_max_size=100M";
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_param HTTP_PROXY "";
+    fastcgi_intercept_errors off;
+    fastcgi_buffer_size 16k;
+    fastcgi_buffers 4 16k;
+    fastcgi_connect_timeout 300;
+    fastcgi_send_timeout 300;
+    fastcgi_read_timeout 300;
+}
 
-        location ~ /\.ht {
-            deny all;
-        }
-    }
-    EOF
+location ~ /\.ht {
+    deny all;
+}
+}
+EOF
 
     sudo ln -s /etc/nginx/sites-available/pterodactyl.conf /etc/nginx/sites-enabled/pterodactyl.conf
     sudo systemctl restart nginx
@@ -238,7 +247,7 @@ elif [ execution === "3"]; then
     echo "Then reboot the server with the following command: sudo reboot"
 
 
-elif [ $execution = "4" ]; then 
+elif [ "$execution" = "4" ]; then 
     # --------------------------------------------
 
     sudo mkdir -p /etc/pterodactyl
@@ -260,33 +269,34 @@ elif [ $execution = "4" ]; then
     # --------------------------------------------
 
 
-elif [ $execution = "5" ]; then
+elif [ "$execution" = "5" ]; then
     sudo wings --debug
 
     tee /etc/systemd/system/wings.service <<EOF
-    [Unit]
-    Description=Pterodactyl Wings Daemon
-    After=docker.service
-    Requires=docker.service
-    PartOf=docker.service
+[Unit]
+Description=Pterodactyl Wings Daemon
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
 
-    [Service]
-    User=root
-    WorkingDirectory=/etc/pterodactyl
-    LimitNOFILE=4096
-    PIDFile=/var/run/wings/daemon.pid
-    ExecStart=/usr/local/bin/wings
-    Restart=on-failure
-    StartLimitInterval=180
-    StartLimitBurst=30
-    RestartSec=5s
+[Service]
+User=root
+WorkingDirectory=/etc/pterodactyl
+LimitNOFILE=4096
+PIDFile=/var/run/wings/daemon.pid
+ExecStart=/usr/local/bin/wings
+Restart=on-failure
+StartLimitInterval=180
+StartLimitBurst=30
+RestartSec=5s
 
-    [Install]
-    WantedBy=multi-user.target
-    EOF
+[Install]
+WantedBy=multi-user.target
+EOF
 
     sudo systemctl enable --now wings
 
 else
     echo "Invalid input. Please try again."
+    
 fi
